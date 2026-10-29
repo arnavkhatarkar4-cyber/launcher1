@@ -1,0 +1,33 @@
+name: Build
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: unzip -q project.zip -d proj
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.7
+      - name: Build APK
+        run: |
+          ROOT=$(dirname "$(find proj -name 'settings.gradle*' | head -1)")
+          cd "$ROOT"
+          gradle assembleDebug
+          mkdir -p /tmp/out
+          cp "$(find . -name '*.apk' | head -1)" /tmp/out/launcher.apk
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest -y --cleanup-tag || true
+          gh release create latest /tmp/out/launcher.apk --title "Launcher" --notes "Latest build"
